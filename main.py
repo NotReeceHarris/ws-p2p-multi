@@ -63,6 +63,10 @@ class App(customtkinter.CTk):
         self.main_button_1.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
 
     def recv_message(self, message, sender="Friend"):
+
+        if message == False:
+            return
+
         self.history.append({
             "sender": sender,
             "message": message,

@@ -123,7 +123,7 @@ def recv(data):
         if there_public_key is None:
             if data.decode("utf-8").startswith('-----BEGIN PUBLIC KEY-----'):
                 there_public_key = data
-                return f"Public key received: {there_public_key.decode("utf-8")}"
+                return True
 
         return rsa_decrypt(private_key, data)
 
@@ -133,4 +133,4 @@ def recv(data):
         return obj['message'] """
 
     except Exception as e:
-        return f"Failed to decrypt message: {str(e)}"
+        return False
