@@ -9,7 +9,7 @@ import sys
 from websockets.sync.server import serve
 from websockets.sync.client import connect
 
-from send_recv import send, recv
+from send_recv import send, recv, send_public_key, clear_there_public_key
 
 customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
 customtkinter.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
@@ -21,7 +21,6 @@ Send on client to server
 Receive on server from client
 
 """
-
 
 app = None  # Declare app globally
 target = None
@@ -45,40 +44,23 @@ class App(customtkinter.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        # create tabview
-        self.tabview = customtkinter.CTkTabview(self, width=400)
-        self.tabview.grid(row=0, column=0, columnspan=4, rowspan=4, padx=(20, 20), pady=(5, 10), sticky="nsew")
-        
-        # Add tabs
-        self.tabview.add("Tab 1")
-        self.tabview.add("Tab 2")
-        self.tabview.add("Tab 3")
+        self.textbox = customtkinter.CTkTextbox(self, width=250)
+        self.textbox.grid(row=0, column=0, columnspan=4, rowspan=3, padx=(10, 10), pady=(10, 10), sticky="nsew")
+        self.textbox.configure(state="disabled")
 
-        # Configure grid for individual tabs
-        for tab in ["Tab 1", "Tab 2", "Tab 3"]:
-            self.tabview.tab(tab).grid_columnconfigure(1, weight=1)
-            self.tabview.tab(tab).grid_columnconfigure((2, 3), weight=0)
-            self.tabview.tab(tab).grid_rowconfigure((0, 1, 2), weight=1)
+        self.textbox.configure(font=Font_mono)
+        self.textbox.tag_config('colour_you', foreground="#85bd84")
+        self.textbox.tag_config('colour_friend', foreground="#7c87d6")
+        self.textbox.tag_config('colour_alert', foreground="#bf6767")
 
-        # Example: Adding a label to each tab
-        for i, tab in enumerate(["Tab 1", "Tab 2", "Tab 3"], start=1):
+        # create main entry and button
+        self.entry = customtkinter.CTkEntry(self, placeholder_text="Message")
+        self.entry.configure(state="disabled")
+        self.entry.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 
-            if i == 1:
-                self.textbox = customtkinter.CTkTextbox(self.tabview.tab(tab), width=250)
-                self.textbox.grid(row=0, column=0, columnspan=4, rowspan=3, padx=(10, 10), pady=(10, 10), sticky="nsew")
-                self.textbox.configure(state="disabled")
-
-                self.textbox.configure(font=Font_mono)
-                self.textbox.tag_config('colour_you', foreground="#85bd84")
-                self.textbox.tag_config('colour_friend', foreground="#7c87d6")
-                self.textbox.tag_config('colour_alert', foreground="#bf6767")
-
-                # create main entry and button
-                self.entry = customtkinter.CTkEntry(self.tabview.tab(tab), placeholder_text="Message")
-                self.entry.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
-
-                self.main_button_1 = customtkinter.CTkButton(master=self.tabview.tab(tab), text="Send", command=self.send_message, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"))
-                self.main_button_1.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
+        self.main_button_1 = customtkinter.CTkButton(master=self, text="Send", command=self.send_message, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"))
+        self.main_button_1.configure(state="disabled")
+        self.main_button_1.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
 
     def recv_message(self, message, sender="Friend"):
         self.history.append({
@@ -103,9 +85,9 @@ class App(customtkinter.CTk):
             elif message['sender'] == "Alert":
                 self.textbox.insert(tkinter.END, f"[{message['time'].strftime("%d/%m/%Y %H:%M:%S")}] {message['sender'].ljust(6)} : {message['message']}\n", "colour_alert")
             elif message['sender'] == "Divider":
-                self.textbox.insert(tkinter.END, f"{'-'*80}\n")
+                self.textbox.insert(tkinter.END, f"{'-'*60}\n")
                 self.textbox.insert(tkinter.END, f"{message['message']}\n")
-                self.textbox.insert(tkinter.END, f"{'-'*80}\n")
+                self.textbox.insert(tkinter.END, f"{'-'*60}\n")
             else:
                 self.textbox.insert(tkinter.END, f"[{message['time'].strftime("%d/%m/%Y %H:%M:%S")}] {message['sender'].ljust(6)} : {message['message']}\n")
 
@@ -122,22 +104,24 @@ class App(customtkinter.CTk):
 
         if (self.client is not None and self.client.state == 1 and self.server is not None and self.server.state == 1):
             self.title("ws-p2p-multi | Connected")
-            
+            self.entry.configure(state="normal")
+            self.main_button_1.configure(state="normal")
             self.recv_message("Two-way communication established", sender="Divider")
         else:
             self.title("ws-p2p-multi | Disconnected")
+            self.entry.configure(state="disabled")
+            self.main_button_1.configure(state="disabled")
 
     def send_message(self):
-        message = self.entry.get()
+        message = self.entry.get().strip()
         if message == "":
             return
 
         self.entry.delete(0, tkinter.END)
-        send(message)
 
         if self.client:   # Check if client is initialized
             try:
-                self.client.send(message)
+                self.client.send(send(message))
                 self.recv_message(message, sender="You")
             except Exception as e:
                 self.recv_message(f"Failed to send message: {str(e)}", sender="Alert")
@@ -145,6 +129,7 @@ class App(customtkinter.CTk):
             self.recv_message("Client not connected", sender="Alert")
 
 def handler(websocket):
+    clear_there_public_key()
     app.recv_message("Client connected", sender="Alert")
     app.server = websocket
     app.is_connected()
@@ -155,12 +140,11 @@ def handler(websocket):
             decoded_message = recv(message)  # Assuming recv is your custom function to decode messages
             app.recv_message(decoded_message, sender="Friend")
         except Exception as e:
-            app.recv_message(f"Failed to receive or decode message: {str(e)}", sender="Alert")
-            # If an error occurs, you might want to decide whether to close the connection or keep listening
             break
+    app.is_connected()
 
 def run_server():
-    with serve(handler, "localhost", port) as server:
+    with serve(handler, "localhost", port, max_size=10 * 1024 * 1024) as server:
         app.recv_message(f"Server started listening on port {port}", sender="Alert")
         server.serve_forever()
 
@@ -171,6 +155,7 @@ def run_client():
         try:
             with connect(f"ws://{target}") as client:
                 app.recv_message(f"Connected to {target}", sender="Alert")
+                client.send(send_public_key())
                 app.client = client
                 app.is_connected()
                 
@@ -187,6 +172,7 @@ def run_client():
                         app.recv_message(f"Client disconnected: {str(e)}", sender="Alert")
                         break
         except Exception as e:
+            app.is_connected()
             app.recv_message(f"Failed to connect to server on port {port}: {str(e)}", sender="Alert")
             # Wait before retrying to avoid spamming the server with connection attempts
             time.sleep(5)
